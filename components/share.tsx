@@ -41,11 +41,22 @@ export default function ShareDialog({ isOpen, onClose, currentRoomId }: ShareDia
     }
   };
 
-  const generatePrivateRoom = () => {
+  const generatePrivateRoom = async () => {
     const newRoomId = Math.random().toString(36).substring(2, 10);
     const url = new URL(window.location.href);
     url.searchParams.set("room", newRoomId);
-    window.location.href = url.toString(); // Force a hard navigation to reload cleanly into the new room
+    const newRoomUrl = url.toString();
+    
+    // Copy to clipboard before navigating
+    try {
+      await navigator.clipboard.writeText(newRoomUrl);
+      toast.success("Room created! Link copied to clipboard.");
+    } catch (err) {
+      toast.error("Room created, but failed to copy link");
+    }
+    
+    // Navigate to the new room
+    window.location.href = newRoomUrl;
   };
 
   return (
@@ -105,25 +116,27 @@ export default function ShareDialog({ isOpen, onClose, currentRoomId }: ShareDia
               </div>
             )}
 
-            <div className="flex flex-col gap-2">
-              <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400 pl-1">Room Link</label>
-              <div className="flex items-center gap-2">
-                <input
-                  type="text"
-                  readOnly
-                  value={shareUrl}
-                  className="flex-1 bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-800 rounded-lg px-3 py-2.5 text-sm text-zinc-600 dark:text-zinc-300 focus:outline-none truncate"
-                  onClick={(e) => (e.target as HTMLInputElement).select()}
-                />
-                <button
-                  onClick={handleCopy}
-                  className="shrink-0 bg-zinc-900 dark:bg-white text-white dark:text-black hover:bg-zinc-800 dark:hover:bg-zinc-200 font-medium p-2.5 rounded-lg transition-colors flex items-center justify-center shadow-sm w-10 h-10"
-                  title="Copy Link"
-                >
-                  {copied ? <Check className="w-4 h-4 text-green-400 dark:text-green-600" /> : <Copy className="w-4 h-4" />}
-                </button>
+            {!isGlobal && (
+              <div className="flex flex-col gap-2">
+                <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400 pl-1">Room Link</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    readOnly
+                    value={shareUrl}
+                    className="flex-1 bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-800 rounded-lg px-3 py-2.5 text-sm text-zinc-600 dark:text-zinc-300 focus:outline-none truncate"
+                    onClick={(e) => (e.target as HTMLInputElement).select()}
+                  />
+                  <button
+                    onClick={handleCopy}
+                    className="shrink-0 bg-zinc-900 dark:bg-white text-white dark:text-black hover:bg-zinc-800 dark:hover:bg-zinc-200 font-medium p-2.5 rounded-lg transition-colors flex items-center justify-center shadow-sm w-10 h-10"
+                    title="Copy Link"
+                  >
+                    {copied ? <Check className="w-4 h-4 text-green-400 dark:text-green-600" /> : <Copy className="w-4 h-4" />}
+                  </button>
+                </div>
               </div>
-            </div>
+            )}
 
           </motion.div>
         </div>

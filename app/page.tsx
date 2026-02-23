@@ -1,5 +1,5 @@
 import DrawingCanvas from "@/components/canvas";
-import AuthWrapper from "@/components/auth-wrapper";
+import AuthWrapper from "@/components/auth";
 
 export default function Home() {
   return (

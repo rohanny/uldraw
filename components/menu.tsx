@@ -2,22 +2,25 @@
 
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Menu as MenuIcon, Moon, Sun, LogOut } from "lucide-react";
+import { Menu as MenuIcon, Moon, Sun, LogOut, Download } from "lucide-react";
 import { useTheme } from "next-themes";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { useAvatarStore } from "@/lib/store";
 
 interface BottomMenuProps {
   user?: any;
   onEditProfile?: () => void;
+  onExport?: () => void;
 }
 
-export default function BottomMenu({ user, onEditProfile }: BottomMenuProps) {
+export default function BottomMenu({ user, onEditProfile, onExport }: BottomMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
   const { theme, setTheme, systemTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   const router = useRouter();
+  const { getAvatarSeed } = useAvatarStore();
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => setMounted(true), []);
@@ -71,7 +74,7 @@ export default function BottomMenu({ user, onEditProfile }: BottomMenuProps) {
                 >
                   <div className="h-10 w-10 rounded-full bg-indigo-500 shrink-0 border border-zinc-200 dark:border-zinc-700 overflow-hidden flex items-center justify-center shadow-sm">
                      <img 
-                        src={`https://api.dicebear.com/7.x/notionists/svg?seed=${user.user_metadata?.avatar_seed || user.user_metadata?.full_name || user.email}`}
+                        src={`https://api.dicebear.com/7.x/notionists/svg?seed=${getAvatarSeed(user.id)}`}
                         alt="Avatar" 
                         className="w-full h-full object-cover bg-indigo-100 dark:bg-zinc-800"
                       />
@@ -98,6 +101,21 @@ export default function BottomMenu({ user, onEditProfile }: BottomMenuProps) {
               >
                 {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
                 <span>{isDark ? "Light Mode" : "Dark Mode"}</span>
+              </button>
+            )}
+            
+            <div className="h-[1px] w-full bg-zinc-200 dark:bg-zinc-800 my-1" />
+            
+            {onExport && (
+              <button
+                onClick={() => {
+                  onExport();
+                  setIsOpen(false);
+                }}
+                className="flex items-center gap-3 w-full px-3 py-2 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
+              >
+                <Download className="w-4 h-4" />
+                <span>Export</span>
               </button>
             )}
             

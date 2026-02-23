@@ -43,7 +43,7 @@ A high-performance real-time collaborative whiteboard where multiple users can d
 - [ ] Z-index ordering (bring forward/send back)
 
 ### History & Persistence
-- [ ] Undo/Redo (local operation stack)
+- [x] Undo/Redo (local operation stack)
 - [ ] Persistent canvas state (PostgreSQL storage)
 - [ ] Room snapshots
 
