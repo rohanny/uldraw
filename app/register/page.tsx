@@ -1,16 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import { motion } from "framer-motion";
 import { ArrowRight } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import AuthWrapper from "@/components/auth-wrapper";
+import AuthWrapper from "@/components/auth";
 import { supabase } from "@/lib/supabase";
 
-export default function RegisterPage() {
+function RegisterContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirectParams = searchParams.get("redirect");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -36,7 +38,7 @@ export default function RegisterPage() {
       }
       
       toast.success("Account created successfully!");
-      router.push("/login");
+      router.push(`/login${redirectParams ? `?redirect=${encodeURIComponent(redirectParams)}` : ""}`);
     } catch (err: any) {
       setError(err.message);
       toast.error(err.message);
@@ -57,7 +59,7 @@ export default function RegisterPage() {
       }
       
       toast.success("Logged in as Guest!");
-      router.push("/");
+      router.push(redirectParams || "/");
     } catch (err: any) {
       setError(err.message);
       toast.error(err.message);
@@ -154,7 +156,7 @@ export default function RegisterPage() {
 
           <p className="text-center text-xs text-zinc-500 mt-4">
             Already have an account?{" "}
-            <Link href="/login" className="text-zinc-300 hover:text-white transition-colors font-medium">
+            <Link href={`/login${redirectParams ? `?redirect=${encodeURIComponent(redirectParams)}` : ""}`} className="text-zinc-300 hover:text-white transition-colors font-medium">
               Sign in
             </Link>
           </p>
@@ -162,5 +164,13 @@ export default function RegisterPage() {
       </div>
     </div>
     </AuthWrapper>
+  );
+}
+
+export default function RegisterPage() {
+  return (
+    <Suspense fallback={null}>
+      <RegisterContent />
+    </Suspense>
   );
 }

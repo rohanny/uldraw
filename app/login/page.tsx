@@ -1,16 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import { motion } from "framer-motion";
 import { ArrowRight } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import AuthWrapper from "@/components/auth-wrapper";
+import AuthWrapper from "@/components/auth";
 import { supabase } from "@/lib/supabase";
 
-export default function LoginPage() {
+function LoginContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirectParams = searchParams.get("redirect");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
@@ -34,7 +36,7 @@ export default function LoginPage() {
       
       // Successfully logged in (you could save the token to a cookie/localstorage here)
       toast.success("Successfully logged in!");
-      router.push("/");
+      router.push(redirectParams || "/");
     } catch (err: any) {
       setError(err.message);
       toast.error(err.message);
@@ -55,7 +57,7 @@ export default function LoginPage() {
       }
       
       toast.success("Logged in as Guest!");
-      router.push("/");
+      router.push(redirectParams || "/");
     } catch (err: any) {
       setError(err.message);
       toast.error(err.message);
@@ -145,7 +147,7 @@ export default function LoginPage() {
 
           <p className="text-center text-xs text-zinc-500 mt-4">
             Don't have an account?{" "}
-            <Link href="/register" className="text-zinc-300 hover:text-white transition-colors font-medium">
+            <Link href={`/register${redirectParams ? `?redirect=${encodeURIComponent(redirectParams)}` : ""}`} className="text-zinc-300 hover:text-white transition-colors font-medium">
               Sign up
             </Link>
           </p>
@@ -153,5 +155,13 @@ export default function LoginPage() {
       </div>
     </div>
     </AuthWrapper>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginContent />
+    </Suspense>
   );
 }
