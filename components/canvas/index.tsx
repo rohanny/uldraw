@@ -56,10 +56,15 @@ export default function DrawingCanvas() {
   const [hoverHandle, setHoverHandle] = useState<string | null>(null);
   const [windowSize, setWindowSize] = useState({ width: 0, height: 0 });
   const [roomId, setRoomId] = useState("global");
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [isSpacePressed, setIsSpacePressed] = useState(false);
+  const [isPanning, setIsPanning] = useState(false);
+  const [showPanIndicator, setShowPanIndicator] = useState(false);
+  const panTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => { 
     strokesRef.current = strokes;
-    if (!isLoaded) return; // Don't save over local storage on initial mount before loading
+    if (!isLoaded) return;
 
     if (strokes.length > 0) {
       localStorage.setItem(`uldraw-strokes-${roomId}`, JSON.stringify(strokes));
@@ -67,6 +72,53 @@ export default function DrawingCanvas() {
       localStorage.removeItem(`uldraw-strokes-${roomId}`);
     }
   }, [strokes, roomId, isLoaded]);
+
+  const spacePressRef = useRef({ count: 0, lastTime: 0 });
+
+  // Handle Space key for panning
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.code === "Space") {
+        if (e.repeat) return; // Ignore hold-down repetitions for triple-press count
+        
+        const now = Date.now();
+        if (now - spacePressRef.current.lastTime < 500) {
+          spacePressRef.current.count += 1;
+        } else {
+          spacePressRef.current.count = 1;
+        }
+        spacePressRef.current.lastTime = now;
+
+        if (spacePressRef.current.count === 3) {
+          setPan({ x: 0, y: 0 });
+          spacePressRef.current.count = 0; // Reset after trigger
+          
+          // Show indicator that we reset
+          setShowPanIndicator(true);
+          if (panTimeoutRef.current) clearTimeout(panTimeoutRef.current);
+          panTimeoutRef.current = setTimeout(() => setShowPanIndicator(false), 2000);
+          return;
+        }
+
+        if (!isSpacePressed) {
+          setIsSpacePressed(true);
+        }
+      }
+    };
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.code === "Space") {
+        setIsSpacePressed(false);
+        setIsPanning(false);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("keyup", handleKeyUp);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keyup", handleKeyUp);
+    };
+  }, [isSpacePressed]);
 
   const channelRef = useRef<RealtimeChannel | null>(null);
 
@@ -331,6 +383,9 @@ export default function DrawingCanvas() {
     ctx.fillStyle = isDark ? "#121212" : "#ffffff";
     ctx.fillRect(0, 0, rect.width, rect.height);
 
+    ctx.save();
+    ctx.translate(pan.x, pan.y);
+
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
 
@@ -471,8 +526,10 @@ export default function DrawingCanvas() {
         drawStroke(cursor.currentStroke);
       }
     });
+
+    ctx.restore();
     
-  }, [strokes, currentStroke, isDark, windowSize, cursors, currentUser]);
+  }, [strokes, currentStroke, isDark, windowSize, cursors, currentUser, pan]);
 
   const startDrawing = (e: React.MouseEvent<HTMLCanvasElement>) => {
     // Close pickers if open
@@ -482,13 +539,23 @@ export default function DrawingCanvas() {
       return;
     }
     
-    setIsDrawing(true);
     const canvas = canvasRef.current;
     if (!canvas) return;
 
     const rect = canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
+    
+    // Virtual coordinates (account for pan)
+    const vx = x - pan.x;
+    const vy = y - pan.y;
+
+    if (isSpacePressed) {
+      setIsPanning(true);
+      return;
+    }
+    
+    setIsDrawing(true);
 
     if (tool === "select") {
       let hitHandle: string | undefined;
@@ -515,11 +582,11 @@ export default function DrawingCanvas() {
           
           const rotHandleY = finalBox.minY - 24;
           
-          let pointerX = x;
-          let pointerY = y;
+          let pointerX = vx;
+          let pointerY = vy;
           if (selectedStrokeIds.length === 1 && selectedStrokes[0].angle && selectedStrokes[0].centerX !== undefined && selectedStrokes[0].centerY !== undefined) {
              const s = selectedStrokes[0];
-             const rotated = rotatePoint(x, y, s.centerX!, s.centerY!, -(s.angle || 0));
+             const rotated = rotatePoint(vx, vy, s.centerX!, s.centerY!, -(s.angle || 0));
              pointerX = rotated.x;
              pointerY = rotated.y;
           }
@@ -527,12 +594,12 @@ export default function DrawingCanvas() {
           if (selectedStrokeIds.length === 1 && distanceToPoint(pointerX, pointerY, finalBox.centerX, rotHandleY) <= halfSize + 4) hitHandle = "rotate";
           else if (isPointInBox(pointerX, pointerY, { minX: finalBox.minX - halfSize, minY: finalBox.minY - halfSize, maxX: finalBox.minX + halfSize, maxY: finalBox.minY + halfSize, width: handleSize, height: handleSize, centerX: finalBox.minX, centerY: finalBox.minY })) hitHandle = "TL";
           else if (isPointInBox(pointerX, pointerY, { minX: finalBox.maxX - halfSize, minY: finalBox.minY - halfSize, maxX: finalBox.maxX + halfSize, maxY: finalBox.minY + halfSize, width: handleSize, height: handleSize, centerX: finalBox.maxX, centerY: finalBox.minY })) hitHandle = "TR";
-          else if (isPointInBox(pointerX, pointerY, { minX: finalBox.minX - halfSize, minY: finalBox.maxY - halfSize, maxX: finalBox.minX + halfSize, maxY: finalBox.maxY + halfSize, width: handleSize, height: handleSize, centerX: finalBox.minX, centerY: finalBox.maxY })) hitHandle = "BL";
+          else if (isPointInBox(pointerX, pointerY, { minX: finalBox.minX - halfSize, minY: finalBox.maxY - halfSize, maxX: finalBox.minX + halfSize, maxY: finalBox.minY + halfSize, width: handleSize, height: handleSize, centerX: finalBox.minX, centerY: finalBox.maxY })) hitHandle = "BL";
           else if (isPointInBox(pointerX, pointerY, { minX: finalBox.maxX - halfSize, minY: finalBox.maxY - halfSize, maxX: finalBox.maxX + halfSize, maxY: finalBox.maxY + halfSize, width: handleSize, height: handleSize, centerX: finalBox.maxX, centerY: finalBox.maxY })) hitHandle = "BR";
           else if (isPointInBox(pointerX, pointerY, finalBox)) hitHandle = "move";
           
           if (hitHandle) {
-             setTransformState({ type: hitHandle === "move" ? "move" : hitHandle === "rotate" ? "rotate" : "resize", handle: hitHandle, startX: x, startY: y, initialStrokes: JSON.parse(JSON.stringify(selectedStrokes)) });
+             setTransformState({ type: hitHandle === "move" ? "move" : hitHandle === "rotate" ? "rotate" : "resize", handle: hitHandle, startX: vx, startY: vy, initialStrokes: JSON.parse(JSON.stringify(selectedStrokes)) });
              return;
           }
         }
@@ -541,10 +608,10 @@ export default function DrawingCanvas() {
       // Check if we hit a stroke
       for (let i = strokes.length - 1; i >= 0; i--) {
         const stroke = strokes[i];
-        let pX = x;
-        let pY = y;
+        let pX = vx;
+        let pY = vy;
         if (stroke.angle && stroke.centerX !== undefined && stroke.centerY !== undefined) {
-           const rotated = rotatePoint(x, y, stroke.centerX!, stroke.centerY!, -(stroke.angle || 0));
+           const rotated = rotatePoint(vx, vy, stroke.centerX!, stroke.centerY!, -(stroke.angle || 0));
            pX = rotated.x;
            pY = rotated.y;
         }
@@ -558,17 +625,17 @@ export default function DrawingCanvas() {
       
       setSelectedStrokeIds(hitStrokeId ? [hitStrokeId] : []);
       if (hitStrokeId && clickedStroke) {
-        setTransformState({ type: "move", handle: "move", startX: x, startY: y, initialStrokes: JSON.parse(JSON.stringify([clickedStroke])) });
+        setTransformState({ type: "move", handle: "move", startX: vx, startY: vy, initialStrokes: JSON.parse(JSON.stringify([clickedStroke])) });
       } else {
         setTransformState(null);
-        setMarquee({ startX: x, startY: y, currentX: x, currentY: y });
+        setMarquee({ startX: vx, startY: vy, currentX: vx, currentY: vy });
       }
       return;
     }
 
     if (tool === "eraser") {
       setStrokes((prev) => {
-        const next = prev.filter((stroke) => !isPointNearStroke(x, y, stroke, eraserSize));
+        const next = prev.filter((stroke) => !isPointNearStroke(vx, vy, stroke, eraserSize));
         if (next.length !== prev.length) {
           broadcastStrokes(next);
         }
@@ -577,7 +644,7 @@ export default function DrawingCanvas() {
     } else {
       setCurrentStroke({
         id: crypto.randomUUID(),
-        points: [{ x, y }],
+        points: [{ x: vx, y: vy }],
         color,
         size: tool === "brush" ? brushSize : pencilSize,
         tool,
@@ -592,18 +659,33 @@ export default function DrawingCanvas() {
     const rect = canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
+    
+    // Virtual coordinates (account for pan)
+    const vx = x - pan.x;
+    const vy = y - pan.y;
+
+    if (isPanning) {
+      const dx = e.movementX;
+      const dy = e.movementY;
+      setPan((prev) => ({ x: prev.x + dx, y: prev.y + dy }));
+      
+      setShowPanIndicator(true);
+      if (panTimeoutRef.current) clearTimeout(panTimeoutRef.current);
+      panTimeoutRef.current = setTimeout(() => setShowPanIndicator(false), 3000);
+      return;
+    }
 
     // Broadcast cursor position occasionally to save bandwidth, or just send
     if (currentUser && channelRef.current) {
       let activeStroke: Stroke | undefined;
       
-      if (isDrawing && tool !== "eraser" && tool !== "select") {
+      if (isDrawing && tool !== "eraser" && tool !== "select" && !isPanning) {
         activeStroke = currentStroke ? {
           ...currentStroke,
-          points: [...currentStroke.points, { x, y }]
+          points: [...currentStroke.points, { x: vx, y: vy }]
         } : {
           id: crypto.randomUUID(),
-          points: [{ x, y }],
+          points: [{ x: vx, y: vy }],
           color,
           size: tool === "brush" ? brushSize : pencilSize,
           tool,
@@ -617,8 +699,8 @@ export default function DrawingCanvas() {
           id: currentUser.id,
           name: currentUser.user_metadata?.full_name || currentUser.email || "Collaborator",
           avatarSeed: currentUser.user_metadata?.avatar_seed || currentUser.user_metadata?.full_name || currentUser.email || "Collaborator",
-          x,
-          y,
+          x: vx,
+          y: vy,
           color,
           currentStroke: activeStroke
         },
@@ -642,11 +724,11 @@ export default function DrawingCanvas() {
             };
             const rotHandleY = finalBox.minY - 24;
             
-            let pointerX = x;
-            let pointerY = y;
+            let pointerX = vx;
+            let pointerY = vy;
             if (selectedStrokeIds.length === 1 && selectedStrokes[0].angle && selectedStrokes[0].centerX !== undefined && selectedStrokes[0].centerY !== undefined) {
                const s = selectedStrokes[0];
-               const rotated = rotatePoint(x, y, s.centerX!, s.centerY!, -(s.angle || 0));
+               const rotated = rotatePoint(vx, vy, s.centerX!, s.centerY!, -(s.angle || 0));
                pointerX = rotated.x;
                pointerY = rotated.y;
             }
@@ -666,7 +748,7 @@ export default function DrawingCanvas() {
     }
 
     if (marquee) {
-       setMarquee(prev => prev ? { ...prev, currentX: x, currentY: y } : null);
+       setMarquee(prev => prev ? { ...prev, currentX: vx, currentY: vy } : null);
        return;
     }
 
@@ -678,7 +760,7 @@ export default function DrawingCanvas() {
             
             if (transformState.handle === "rotate" && selectedStrokeIds.length === 1) {
               const startAngle = Math.atan2(transformState.startY - initialStroke.centerY!, transformState.startX - initialStroke.centerX!);
-              const endAngle = Math.atan2(y - initialStroke.centerY!, x - initialStroke.centerX!);
+              const endAngle = Math.atan2(vy - initialStroke.centerY!, vx - initialStroke.centerX!);
               const angleDelta = endAngle - startAngle;
               return { ...stroke, angle: (initialStroke.angle || 0) + angleDelta };
             }
@@ -695,17 +777,17 @@ export default function DrawingCanvas() {
               get centerY() { return (this.minY + this.maxY) / 2; },
             };
 
-            const transformedPoints = applyTransform(initialStroke.points, groupBox, transformState.startX, transformState.startY, x, y, transformState.handle || "move");
+            const transformedPoints = applyTransform(initialStroke.points, groupBox, transformState.startX, transformState.startY, vx, vy, transformState.handle || "move");
             
             let newCx = initialStroke.centerX;
             let newCy = initialStroke.centerY;
             if (newCx !== undefined && newCy !== undefined && transformState.handle !== "move") {
-                const centerTransformed = applyTransform([{x: newCx, y: newCy}], groupBox, transformState.startX, transformState.startY, x, y, transformState.handle || "move");
+                const centerTransformed = applyTransform([{x: newCx, y: newCy}], groupBox, transformState.startX, transformState.startY, vx, vy, transformState.handle || "move");
                 newCx = centerTransformed[0].x;
                 newCy = centerTransformed[0].y;
             } else if (newCx !== undefined && newCy !== undefined && transformState.handle === "move") {
-                newCx += x - transformState.startX;
-                newCy += y - transformState.startY;
+                newCx += vx - transformState.startX;
+                newCy += vy - transformState.startY;
             }
 
             return { ...stroke, points: transformedPoints, centerX: newCx, centerY: newCy };
@@ -717,7 +799,7 @@ export default function DrawingCanvas() {
 
     if (tool === "eraser") {
        setStrokes((prev) => {
-         const next = prev.filter((stroke) => !isPointNearStroke(x, y, stroke, eraserSize));
+         const next = prev.filter((stroke) => !isPointNearStroke(vx, vy, stroke, eraserSize));
          if (next.length !== prev.length) {
            broadcastStrokes(next);
          }
@@ -726,12 +808,16 @@ export default function DrawingCanvas() {
     } else if (currentStroke) {
       setCurrentStroke((prev) => prev ? {
         ...prev,
-        points: [...prev.points, { x, y }]
+        points: [...prev.points, { x: vx, y: vy }]
       } : null);
     }
   };
 
   const stopDrawing = () => {
+    if (isPanning) {
+      setIsPanning(false);
+      return;
+    }
     if (!isDrawing) return;
     setIsDrawing(false);
 
@@ -781,8 +867,8 @@ export default function DrawingCanvas() {
             id: currentUser.id,
             name: currentUser.user_metadata?.full_name || currentUser.email || "Collaborator",
             avatarSeed: currentUser.user_metadata?.avatar_seed || currentUser.user_metadata?.full_name || currentUser.email || "Collaborator",
-            x: -100, // Move offscreen or maintain last known position
-            y: -100,
+            x: -9999, // Move far offscreen since we don't have vx/vy context here easily without passing it
+            y: -9999,
             color,
             currentStroke: undefined
           },
@@ -910,14 +996,14 @@ export default function DrawingCanvas() {
         onMouseLeave={stopDrawing}
         className="w-full h-full bg-white dark:bg-[#121212]"
         style={{
-          cursor: tool === "eraser"
-            ? `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' ${isDark ? "stroke='white'" : "stroke='black'"} stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21'/%3E%3Cpath d='M22 21H7'/%3E%3Cpath d='m5 11 9 9'/%3E%3C/svg%3E") 0 16, auto`
-            : transformState?.handle === "rotate"
+          cursor: isPanning
             ? "grabbing"
-            : hoverHandle === "rotate"
+            : isSpacePressed
             ? "grab"
+            : tool === "eraser"
+            ? `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' ${isDark ? "stroke='white'" : "stroke='black'"} stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21'/%3E%3Cpath d='M22 21H7'/%3E%3Cpath d='m5 11 9 9'/%3E%3C/svg%3E") 0 16, auto`
             : tool === "select"
-            ? "default"
+            ? hoverHandle === "rotate" ? "crosshair" : hoverHandle ? "move" : "default"
             : "crosshair"
         }}
       />
@@ -930,7 +1016,7 @@ export default function DrawingCanvas() {
           key={cursor.id}
           className="absolute pointer-events-none flex items-start"
           initial={{ opacity: 0 }}
-          animate={{ x: cursor.x, y: cursor.y, opacity: 1 }}
+          animate={{ x: cursor.x + pan.x, y: cursor.y + pan.y, opacity: 1 }}
           transition={{ type: "spring", stiffness: 300, damping: 25, mass: 0.5 }}
           style={{ left: 0, top: 0, zIndex: 40 }}
         >
@@ -997,6 +1083,22 @@ export default function DrawingCanvas() {
         onClose={() => setShowExportDialog(false)}
         onExport={handleExport}
       />
+
+      <AnimatePresence>
+        {showPanIndicator && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="fixed top-6 left-6 z-50 bg-white dark:bg-zinc-900 px-3 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800 shadow-sm flex items-center gap-2 pointer-events-none"
+          >
+            <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+            <span className="text-[10px] font-mono text-zinc-500 dark:text-zinc-400 uppercase tracking-widest">
+              POS: {Math.round(-pan.x)}, {Math.round(-pan.y)}
+            </span>
+          </motion.div>
+        )}
+      </AnimatePresence>
       
       <AnimatePresence>
         {showColorPicker && (

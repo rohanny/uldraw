@@ -32,7 +32,7 @@ export default function Profile({ collaborators = [], onShareClick }: ProfilePro
       {/* Invite Button */}
       <div 
         onClick={onShareClick}
-        className="pointer-events-auto ml-4 h-10 px-4 rounded-full border border-dashed border-zinc-300 dark:border-zinc-700 flex items-center justify-center bg-white/50 dark:bg-zinc-900/50 backdrop-blur-sm shadow-sm transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800 cursor-pointer text-sm font-medium text-zinc-600 dark:text-zinc-300"
+        className="pointer-events-auto ml-4 h-10 px-4 rounded-full border border-dashed border-zinc-300 dark:border-zinc-700 flex items-center justify-center bg-white/50 dark:bg-zinc-900/50 backdrop-blur-sm shadow-sm transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800 cursor-pointer text-sm font-sans font-medium text-zinc-600 dark:text-zinc-300"
       >
         Share
       </div>

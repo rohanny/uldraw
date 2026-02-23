@@ -7,17 +7,18 @@ import { X } from "lucide-react";
 interface ExportDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  onExport: (type: 'png' | 'jpg' | 'svg', fileName: string, includeBackground: boolean) => void;
+  onExport: (type: 'png' | 'jpg' | 'svg', fileName: string, includeBackground: boolean, scale: number) => void;
 }
 
 export default function ExportDialog({ isOpen, onClose, onExport }: ExportDialogProps) {
   const [exportType, setExportType] = useState<'png' | 'jpg' | 'svg'>('png');
   const [fileName, setFileName] = useState(`drawing-${Date.now()}`);
   const [includeBackground, setIncludeBackground] = useState(true);
+  const [scale, setScale] = useState(1);
 
   const handleExport = () => {
     if (!fileName.trim()) return;
-    onExport(exportType, fileName.trim(), includeBackground);
+    onExport(exportType, fileName.trim(), includeBackground, scale);
     onClose();
   };
 
@@ -85,6 +86,29 @@ export default function ExportDialog({ isOpen, onClose, onExport }: ExportDialog
                     ))}
                   </div>
                 </div>
+
+                {exportType !== 'svg' && (
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                      Scale
+                    </label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {[1, 2, 4].map((s) => (
+                        <button
+                          key={s}
+                          onClick={() => setScale(s)}
+                          className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                            scale === s
+                              ? 'bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900'
+                              : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-700'
+                          }`}
+                        >
+                          {s}x
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 <div className="flex items-center justify-between">
                   <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
