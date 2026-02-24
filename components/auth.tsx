@@ -27,8 +27,10 @@ function AuthLogic({
     const checkUser = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       
+      const isAuthPage = pathname === '/login' || pathname === '/register';
+
       if (requireAuth && !session) {
-        router.push(getRedirectUrl());
+        if (!isAuthPage) router.replace(getRedirectUrl());
       } else if (!requireAuth && session) {
         const redirectUrl = searchParams.get("redirect") || "/";
         router.replace(redirectUrl);
@@ -40,8 +42,10 @@ function AuthLogic({
     checkUser();
     
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      const isAuthPage = pathname === '/login' || pathname === '/register';
+      
       if (requireAuth && !session) {
-        router.push(getRedirectUrl());
+        if (!isAuthPage) router.replace(getRedirectUrl());
       } else if (!requireAuth && session) {
         const redirectUrl = searchParams.get("redirect") || "/";
         router.replace(redirectUrl);

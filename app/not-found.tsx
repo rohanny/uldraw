@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 
 export default function NotFound() {
   return (
-    <div className="min-h-screen w-full bg-white dark:bg-[#121212] flex flex-col font-sans selection:bg-blue-100 relative overflow-hidden transition-colors duration-300">
+    <div className="min-h-screen w-full bg-white dark:bg-[#121212] flex flex-col font-sans selection:bg-purple-100 relative overflow-hidden transition-colors duration-300">
       {/* Noise Overlay */}
       <motion.div 
         animate={{ 
@@ -24,7 +24,7 @@ export default function NotFound() {
 
       {/* Top Left Icon */}
       <div className="absolute top-8 left-8">
-        <div className="w-10 h-10 bg-blue-600 rounded-sm shadow-sm" />
+        <div className="w-10 h-10 bg-purple-600 rounded-sm shadow-sm" />
       </div>
 
       <main className="flex-1 flex flex-col pt-[15vh] px-12 md:px-24">
@@ -53,23 +53,22 @@ export default function NotFound() {
             >
                 {/* Title Bar */}
                 <div className="h-10 bg-[#343b48] dark:bg-[#2d3748] flex items-center px-4 gap-3">
-                    <div className="w-3 h-3 bg-blue-600 rounded-sm" />
+                    <div className="w-3 h-3 bg-purple-600 rounded-sm" />
                     <span className="text-white text-xs font-medium opacity-90">Error 404</span>
                 </div>
 
-                {/* Body */}
                 <div className="p-6 bg-[#f7fafc] dark:bg-[#121212] font-mono text-[13px] leading-relaxed text-slate-600 dark:text-slate-400">
                     <div className="flex gap-2 mb-4">
                         <span className="text-slate-400">$</span>
-                        <span className="text-blue-600 dark:text-blue-400 font-semibold">Error: 404 - Base module not found</span>
+                        <span className="text-purple-600 dark:text-purple-400 font-semibold">Error: 404 - Base module not found</span>
                     </div>
 
-                    <div className="mb-6 opacity-80 text-blue-600/60 dark:text-blue-400/60 leading-tight relative overflow-hidden">
+                    <div className="mb-6 opacity-80 text-purple-600/60 dark:text-purple-400/60 leading-tight relative overflow-hidden">
                         {/* Scanning line animation */}
                         <motion.div 
                           animate={{ top: ["0%", "100%", "0%"] }}
                           transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
-                          className="absolute left-0 right-0 h-[2px] bg-blue-400/20 z-10 pointer-events-none"
+                          className="absolute left-0 right-0 h-[2px] bg-purple-400/20 z-10 pointer-events-none"
                         />
                         
                         <div className="relative">
@@ -134,7 +133,7 @@ export default function NotFound() {
                                 repeatDelay: 1.5,
                                 times: [0, 0.2, 0.4, 0.6, 0.8, 1] 
                               }}
-                              className="absolute top-0 left-0 text-[10px] md:text-xs font-mono tracking-widest text-blue-500/30 select-none pointer-events-none"
+                              className="absolute top-0 left-0 text-[10px] md:text-xs font-mono tracking-widest text-purple-500/30 select-none pointer-events-none"
                             >{`      ___           ___           ___     
      /\\__\\         /\\  \\         /\\__\\    
     /:/  /        /::\\  \\       /:/  /    
@@ -152,11 +151,11 @@ export default function NotFound() {
                     <div className="space-y-1">
                         <div className="flex gap-2">
                             <span className="text-slate-400">#</span>
-                            <span>Suggestion: <Link href="/" className="text-blue-600 dark:text-blue-400 hover:underline">get back to /base</Link></span>
+                            <span>Suggestion: <Link href="/" className="text-purple-600 dark:text-purple-400 hover:underline">get back to /base</Link></span>
                         </div>
                         <div className="flex gap-2">
                             <span className="text-slate-400">#</span>
-                            <span>API Key: <span className="text-blue-600 dark:text-blue-400">Not needed</span></span>
+                            <span>API Key: <span className="text-purple-600 dark:text-purple-400">Not needed</span></span>
                         </div>
                         <div className="flex gap-2 pt-2">
                             <span className="text-slate-400">::</span>
@@ -174,12 +173,12 @@ export default function NotFound() {
       <div className="lg:hidden px-12 pb-24">
          <div className="w-full max-w-sm bg-white dark:bg-[#1e1e1e] border border-slate-200 dark:border-slate-800 rounded-lg shadow-xl overflow-hidden">
             <div className="h-8 bg-[#343b48] dark:bg-[#2d3748] flex items-center px-3 gap-2">
-                <div className="w-2 h-2 bg-blue-600 rounded-sm" />
+                <div className="w-2 h-2 bg-purple-600 rounded-sm" />
                 <span className="text-white text-[10px] font-medium opacity-90">Error 404</span>
             </div>
             <div className="p-4 bg-[#f7fafc] dark:bg-[#121212] font-mono text-[11px] text-slate-600 dark:text-slate-400">
-                <div className="text-blue-600 dark:text-blue-400 font-semibold mb-2">Error: 404 - Base module not found</div>
-                <Link href="/" className="text-blue-600 dark:text-blue-400 hover:underline block mb-1">get back to /base</Link>
+                <div className="text-purple-600 dark:text-purple-400 font-semibold mb-2">Error: 404 - Base module not found</div>
+                <Link href="/" className="text-purple-600 dark:text-purple-400 hover:underline block mb-1">get back to /base</Link>
                 <div className="text-slate-400">API Key: Not needed</div>
             </div>
          </div>
