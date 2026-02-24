@@ -19,7 +19,11 @@ import { COLORS, BRUSH_SIZES, PENCIL_SIZES, ERASER_SIZES } from "./constants";
 import { pointToLineDistance, isPointNearStroke, getBoundingBox, isPointInBox, distanceToPoint, applyTransform, doBoxesIntersect, BoundingBox, rotatePoint } from "./utils";
 import { createExportHandler } from "./exportutils";
 
-export default function DrawingCanvas() {
+interface DrawingCanvasProps {
+  mode?: "local" | "global";
+}
+
+export default function DrawingCanvas({ mode = "local" }: DrawingCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [tool, setTool] = useState<Tool>("brush");
@@ -55,12 +59,14 @@ export default function DrawingCanvas() {
   const [transformState, setTransformState] = useState<{ type: "move" | "resize" | "rotate", handle?: string, startX: number, startY: number, initialStrokes: Stroke[] } | null>(null);
   const [hoverHandle, setHoverHandle] = useState<string | null>(null);
   const [windowSize, setWindowSize] = useState({ width: 0, height: 0 });
-  const [roomId, setRoomId] = useState("global");
+  const [roomId, setRoomId] = useState(mode === "local" ? "local" : "global");
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [isSpacePressed, setIsSpacePressed] = useState(false);
   const [isPanning, setIsPanning] = useState(false);
   const [showPanIndicator, setShowPanIndicator] = useState(false);
   const panTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [showPanHint, setShowPanHint] = useState(false);
+  const [hasSeenPanHint, setHasSeenPanHint] = useState(false);
 
   useEffect(() => { 
     strokesRef.current = strokes;
@@ -74,6 +80,14 @@ export default function DrawingCanvas() {
   }, [strokes, roomId, isLoaded]);
 
   const spacePressRef = useRef({ count: 0, lastTime: 0 });
+
+  // Check if user has seen the pan hint before
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const seen = localStorage.getItem("uldraw-pan-hint-seen");
+      setHasSeenPanHint(seen === "true");
+    }
+  }, []);
 
   // Handle Space key for panning
   useEffect(() => {
@@ -164,11 +178,18 @@ export default function DrawingCanvas() {
 
   useEffect(() => {
     if (typeof window !== "undefined") {
-      const searchParams = new URLSearchParams(window.location.search);
-      const room = searchParams.get("room") || "global";
-      setRoomId(room);
+      if (mode === "local") {
+        // Local mode: use local storage only
+        setRoomId("local");
+      } else {
+        // Global mode: support room parameter
+        const searchParams = new URLSearchParams(window.location.search);
+        const room = searchParams.get("room") || "global";
+        setRoomId(room);
+      }
       
-      const savedStrokes = localStorage.getItem(`uldraw-strokes-${room}`);
+      const currentRoom = mode === "local" ? "local" : (new URLSearchParams(window.location.search).get("room") || "global");
+      const savedStrokes = localStorage.getItem(`uldraw-strokes-${currentRoom}`);
       if (savedStrokes) {
         try {
           const parsed = JSON.parse(savedStrokes);
@@ -180,9 +201,14 @@ export default function DrawingCanvas() {
       }
       setIsLoaded(true);
     }
-  }, []);
+  }, [mode]);
 
   useEffect(() => {
+    // Only subscribe to realtime in global mode
+    if (mode === "local") {
+      return;
+    }
+    
     // Always use a room (default to "global" if none specified)
     const effectiveRoomId = roomId || "global";
     
@@ -249,9 +275,10 @@ export default function DrawingCanvas() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [roomId]);
+  }, [roomId, mode]);
 
   const broadcastStrokes = (newStrokes: Stroke[]) => {
+    if (mode === "local") return; // Don't broadcast in local mode
     if (channelRef.current) {
       channelRef.current.send({
         type: "broadcast",
@@ -262,6 +289,7 @@ export default function DrawingCanvas() {
   };
 
   const broadcastClear = () => {
+    if (mode === "local") return; // Don't broadcast in local mode
     if (channelRef.current) {
       channelRef.current.send({
         type: "broadcast",
@@ -669,6 +697,15 @@ export default function DrawingCanvas() {
       const dy = e.movementY;
       setPan((prev) => ({ x: prev.x + dx, y: prev.y + dy }));
       
+      // Show hint on first pan only
+      if (!hasSeenPanHint && !showPanHint) {
+        setShowPanHint(true);
+        setHasSeenPanHint(true);
+        localStorage.setItem("uldraw-pan-hint-seen", "true");
+        // Auto-hide hint after 10 seconds
+        setTimeout(() => setShowPanHint(false), 10000);
+      }
+      
       setShowPanIndicator(true);
       if (panTimeoutRef.current) clearTimeout(panTimeoutRef.current);
       panTimeoutRef.current = setTimeout(() => setShowPanIndicator(false), 3000);
@@ -692,19 +729,21 @@ export default function DrawingCanvas() {
         };
       }
 
-      channelRef.current.send({
-        type: "broadcast",
-        event: "cursor_move",
-        payload: {
-          id: currentUser.id,
-          name: currentUser.user_metadata?.full_name || currentUser.email || "Collaborator",
-          avatarSeed: currentUser.user_metadata?.avatar_seed || currentUser.user_metadata?.full_name || currentUser.email || "Collaborator",
-          x: vx,
-          y: vy,
-          color,
-          currentStroke: activeStroke
-        },
-      });
+      if (mode === "global" && channelRef.current) {
+        channelRef.current.send({
+          type: "broadcast",
+          event: "cursor_move",
+          payload: {
+            id: currentUser.id,
+            name: currentUser.user_metadata?.full_name || currentUser.email || "Collaborator",
+            avatarSeed: currentUser.user_metadata?.avatar_seed || currentUser.user_metadata?.full_name || currentUser.email || "Collaborator",
+            x: vx,
+            y: vy,
+            color,
+            currentStroke: activeStroke
+          },
+        });
+      }
     }
 
     if (!isDrawing) {
@@ -859,7 +898,7 @@ export default function DrawingCanvas() {
       broadcastStrokes(newStrokes);
       
       // Clear current stroke from our cursor broadcast
-      if (currentUser && channelRef.current) {
+      if (mode === "global" && currentUser && channelRef.current) {
         channelRef.current.send({
           type: "broadcast",
           event: "cursor_move",
@@ -1068,14 +1107,21 @@ export default function DrawingCanvas() {
 
       {/* Top right Avatar Profile */}
       <Profile 
-        collaborators={Object.values(cursors).map(c => ({ id: c.id, name: c.name, avatarSeed: c.avatarSeed }))} 
-        onShareClick={() => setShowShareDialog(true)}
+        collaborators={mode === "global" ? Object.values(cursors).map(c => ({ id: c.id, name: c.name, avatarSeed: c.avatarSeed })) : []} 
+        onShareClick={
+          mode === "local" 
+            ? () => setShowShareDialog(true) 
+            : (mode === "global" && roomId !== "global") 
+              ? () => setShowShareDialog(true)
+              : undefined
+        }
       />
       
       <ShareDialog 
         isOpen={showShareDialog}
         onClose={() => setShowShareDialog(false)}
         currentRoomId={roomId}
+        mode={mode}
       />
       
       <ExportDialog
@@ -1143,6 +1189,50 @@ export default function DrawingCanvas() {
         onEditProfile={() => setShowGuestDialog(true)}
         onExport={() => setShowExportDialog(true)}
       />
+      
+      {/* Pan Hint */}
+      <AnimatePresence>
+        {showPanHint && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 10 }}
+            className="fixed bottom-20 right-6 z-50 pointer-events-auto font-sans flex items-end gap-3"
+          >
+            {/* Tooltip Card */}
+            <motion.div
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.2 }}
+              className="bg-white/95 dark:bg-zinc-900/95 backdrop-blur-sm border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-xl p-4 max-w-xs"
+            >
+              <div className="flex items-start gap-3">
+                <div className="w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center shrink-0">
+                  <svg className="w-4 h-4 text-indigo-600 dark:text-indigo-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5" />
+                    <path d="M9 18h6" />
+                    <path d="M10 22h4" />
+                  </svg>
+                </div>
+                <div className="flex-1">
+                  <div className="text-xs text-zinc-600 dark:text-zinc-400 leading-relaxed">
+                    Press <kbd className="px-1.5 py-0.5 bg-zinc-100 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded text-xs font-mono text-zinc-700 dark:text-zinc-300">Space</kbd> three times quickly to reset to position (0, 0)
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+            
+            {/* Info Icon Button */}
+            <div 
+              className="w-12 h-12 rounded-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 flex items-center justify-center shadow-lg cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"
+              onClick={() => setShowPanHint(false)}
+              title="Dismiss hint"
+            >
+              <span className="text-xl font-bold">?</span>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

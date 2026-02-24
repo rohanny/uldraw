@@ -9,9 +9,10 @@ interface ShareDialogProps {
   isOpen: boolean;
   onClose: () => void;
   currentRoomId: string;
+  mode?: "local" | "global";
 }
 
-export default function ShareDialog({ isOpen, onClose, currentRoomId }: ShareDialogProps) {
+export default function ShareDialog({ isOpen, onClose, currentRoomId, mode = "global" }: ShareDialogProps) {
   const [copied, setCopied] = useState(false);
   const [shareUrl, setShareUrl] = useState("");
 
@@ -20,15 +21,33 @@ export default function ShareDialog({ isOpen, onClose, currentRoomId }: ShareDia
   useEffect(() => {
     if (typeof window !== "undefined") {
       // Construct the shareable URL
-      const url = new URL(window.location.href);
+      const baseUrl = window.location.origin;
       if (isGlobal || currentRoomId === "global") {
-        url.search = ""; // Global room is just the base URL
+        // Global public room is /g
+        setShareUrl(`${baseUrl}/g`);
+      } else if (currentRoomId === "local") {
+        // Local mode, no share URL needed
+        setShareUrl("");
       } else {
-        url.searchParams.set("room", currentRoomId);
+        // Private room is /?room=xyz
+        setShareUrl(`${baseUrl}/?room=${currentRoomId}`);
       }
-      setShareUrl(url.toString());
     }
-  }, [currentRoomId, isOpen]);
+  }, [currentRoomId, isOpen, isGlobal]);
+
+  // Handle Escape key to close dialog
+  useEffect(() => {
+    if (!isOpen) return;
+    
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        onClose();
+      }
+    };
+    
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [isOpen, onClose]);
 
   const handleCopy = async () => {
     try {
@@ -43,9 +62,8 @@ export default function ShareDialog({ isOpen, onClose, currentRoomId }: ShareDia
 
   const generatePrivateRoom = async () => {
     const newRoomId = Math.random().toString(36).substring(2, 10);
-    const url = new URL(window.location.href);
-    url.searchParams.set("room", newRoomId);
-    const newRoomUrl = url.toString();
+    const baseUrl = window.location.origin;
+    const newRoomUrl = `${baseUrl}/?room=${newRoomId}`;
     
     // Copy to clipboard before navigating
     try {
@@ -56,6 +74,17 @@ export default function ShareDialog({ isOpen, onClose, currentRoomId }: ShareDia
     }
     
     // Navigate to the new room
+    window.location.href = newRoomUrl;
+  };
+
+  const createShareableRoom = async () => {
+    const newRoomId = Math.random().toString(36).substring(2, 10);
+    const baseUrl = window.location.origin;
+    const newRoomUrl = `${baseUrl}/?room=${newRoomId}`;
+    
+    toast.success("Creating shareable room...");
+    
+    // Navigate to the new room at root with query param
     window.location.href = newRoomUrl;
   };
 
@@ -85,7 +114,28 @@ export default function ShareDialog({ isOpen, onClose, currentRoomId }: ShareDia
               </p>
             </div>
 
-            {isGlobal ? (
+            {mode === "local" ? (
+              <div className="flex flex-col gap-4">
+                <div className="flex flex-col gap-4 p-4 bg-indigo-50 dark:bg-indigo-950/20 border border-indigo-200 dark:border-indigo-900/50 rounded-xl">
+                  <div className="flex items-start gap-3">
+                    <Globe className="w-5 h-5 text-indigo-600 dark:text-indigo-500 shrink-0 mt-0.5" />
+                    <div className="flex flex-col gap-1">
+                      <span className="text-sm font-medium text-indigo-900 dark:text-indigo-200">Create Shareable Room</span>
+                      <span className="text-xs text-indigo-700 dark:text-indigo-400/80">
+                        You're currently in local mode. Click below to create a private shareable room and get a link to invite collaborators.
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <button
+                  onClick={createShareableRoom}
+                  className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-3 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-sm"
+                >
+                  <Globe className="w-4 h-4" />
+                  Create Shareable Room
+                </button>
+              </div>
+            ) : isGlobal ? (
               <div className="flex flex-col gap-4 p-4 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/50 rounded-xl">
                 <div className="flex items-start gap-3">
                   <Globe className="w-5 h-5 text-amber-600 dark:text-amber-500 shrink-0 mt-0.5" />
@@ -116,7 +166,7 @@ export default function ShareDialog({ isOpen, onClose, currentRoomId }: ShareDia
               </div>
             )}
 
-            {!isGlobal && (
+            {mode === "global" && !isGlobal && (
               <div className="flex flex-col gap-2">
                 <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400 pl-1">Room Link</label>
                 <div className="flex items-center gap-2">

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X } from "lucide-react";
 
@@ -15,6 +15,20 @@ export default function ExportDialog({ isOpen, onClose, onExport }: ExportDialog
   const [fileName, setFileName] = useState(`drawing-${Date.now()}`);
   const [includeBackground, setIncludeBackground] = useState(true);
   const [scale, setScale] = useState(1);
+
+  // Handle Escape key to close dialog
+  useEffect(() => {
+    if (!isOpen) return;
+    
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        onClose();
+      }
+    };
+    
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [isOpen, onClose]);
 
   const handleExport = () => {
     if (!fileName.trim()) return;

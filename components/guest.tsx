@@ -34,6 +34,20 @@ export default function GuestNameDialog({ isOpen, canClose, onClose, onComplete,
 
   const [currentPresetIndex, setCurrentPresetIndex] = useState(0);
 
+  // Handle Escape key to close dialog (only if canClose is true)
+  useEffect(() => {
+    if (!isOpen || !canClose || !onClose) return;
+    
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        onClose();
+      }
+    };
+    
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [isOpen, canClose, onClose]);
+
   useEffect(() => {
     if (isOpen) {
       supabase.auth.getSession().then(({ data: { session } }) => {
