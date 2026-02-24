@@ -143,6 +143,19 @@ export default function DrawingCanvas({ mode = "local" }: DrawingCanvasProps) {
   const [showExportDialog, setShowExportDialog] = useState(false);
   
   const { getAvatarSeed } = useAvatarStore();
+  
+  // Persistent guest ID for reliability
+  const [guestId] = useState(() => {
+    if (typeof window !== "undefined") {
+      let id = sessionStorage.getItem("uldraw-guest-id");
+      if (!id) {
+        id = `guest-${crypto.randomUUID()}`;
+        sessionStorage.setItem("uldraw-guest-id", id);
+      }
+      return id;
+    }
+    return "";
+  });
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -228,9 +241,9 @@ export default function DrawingCanvas({ mode = "local" }: DrawingCanvasProps) {
       )
       .on(
         "broadcast",
-        { event: "clear_canvas" },
-        () => {
-          setStrokes([]);
+        { event: "sync_strokes" },
+        (payload) => {
+          setStrokes(payload.payload.strokes);
         }
       )
       .on(
@@ -284,16 +297,6 @@ export default function DrawingCanvas({ mode = "local" }: DrawingCanvasProps) {
         type: "broadcast",
         event: "sync_strokes",
         payload: { strokes: newStrokes },
-      });
-    }
-  };
-
-  const broadcastClear = () => {
-    if (mode === "local") return; // Don't broadcast in local mode
-    if (channelRef.current) {
-      channelRef.current.send({
-        type: "broadcast",
-        event: "clear_canvas",
       });
     }
   };
@@ -636,6 +639,10 @@ export default function DrawingCanvas({ mode = "local" }: DrawingCanvasProps) {
       // Check if we hit a stroke
       for (let i = strokes.length - 1; i >= 0; i--) {
         const stroke = strokes[i];
+        
+        // In global mode, only allow selecting our own strokes
+        if (mode === "global" && stroke.userId !== currentUser?.id) continue;
+
         let pX = vx;
         let pY = vy;
         if (stroke.angle && stroke.centerX !== undefined && stroke.centerY !== undefined) {
@@ -663,7 +670,14 @@ export default function DrawingCanvas({ mode = "local" }: DrawingCanvasProps) {
 
     if (tool === "eraser") {
       setStrokes((prev) => {
-        const next = prev.filter((stroke) => !isPointNearStroke(vx, vy, stroke, eraserSize));
+        const next = prev.filter((stroke) => {
+          if (!isPointNearStroke(vx, vy, stroke, eraserSize)) return true;
+          // If near, only allow removal if it's our own stroke in global mode
+          if (mode === "global") {
+            return stroke.userId !== currentUser?.id;
+          }
+          return false; // Remove in local mode
+        });
         if (next.length !== prev.length) {
           broadcastStrokes(next);
         }
@@ -676,6 +690,7 @@ export default function DrawingCanvas({ mode = "local" }: DrawingCanvasProps) {
         color,
         size: tool === "brush" ? brushSize : pencilSize,
         tool,
+        userId: currentUser?.id || guestId,
       });
     }
   };
@@ -726,6 +741,7 @@ export default function DrawingCanvas({ mode = "local" }: DrawingCanvasProps) {
           color,
           size: tool === "brush" ? brushSize : pencilSize,
           tool,
+          userId: currentUser?.id || guestId,
         };
       }
 
@@ -734,9 +750,9 @@ export default function DrawingCanvas({ mode = "local" }: DrawingCanvasProps) {
           type: "broadcast",
           event: "cursor_move",
           payload: {
-            id: currentUser.id,
-            name: currentUser.user_metadata?.full_name || currentUser.email || "Collaborator",
-            avatarSeed: currentUser.user_metadata?.avatar_seed || currentUser.user_metadata?.full_name || currentUser.email || "Collaborator",
+            id: currentUser?.id || guestId,
+            name: currentUser?.user_metadata?.full_name || currentUser?.email || "Collaborator",
+            avatarSeed: currentUser?.user_metadata?.avatar_seed || currentUser?.user_metadata?.full_name || currentUser?.email || "Collaborator",
             x: vx,
             y: vy,
             color,
@@ -838,7 +854,13 @@ export default function DrawingCanvas({ mode = "local" }: DrawingCanvasProps) {
 
     if (tool === "eraser") {
        setStrokes((prev) => {
-         const next = prev.filter((stroke) => !isPointNearStroke(vx, vy, stroke, eraserSize));
+         const next = prev.filter((stroke) => {
+           if (!isPointNearStroke(vx, vy, stroke, eraserSize)) return true;
+           if (mode === "global") {
+             return stroke.userId !== (currentUser?.id || guestId);
+           }
+           return false;
+         });
          if (next.length !== prev.length) {
            broadcastStrokes(next);
          }
@@ -869,7 +891,9 @@ export default function DrawingCanvas({ mode = "local" }: DrawingCanvasProps) {
       
       const selected = strokes.filter(s => {
         const sBox = getBoundingBox(s.points, 10 + s.size / 2);
-        return doBoxesIntersect(box, sBox);
+        if (!doBoxesIntersect(box, sBox)) return false;
+        if (mode === "global") return s.userId === (currentUser?.id || guestId);
+        return true;
       });
       setSelectedStrokeIds(selected.map(s => s.id));
       setMarquee(null);
@@ -898,14 +922,14 @@ export default function DrawingCanvas({ mode = "local" }: DrawingCanvasProps) {
       broadcastStrokes(newStrokes);
       
       // Clear current stroke from our cursor broadcast
-      if (mode === "global" && currentUser && channelRef.current) {
+      if (mode === "global" && (currentUser || guestId) && channelRef.current) {
         channelRef.current.send({
           type: "broadcast",
           event: "cursor_move",
           payload: {
-            id: currentUser.id,
-            name: currentUser.user_metadata?.full_name || currentUser.email || "Collaborator",
-            avatarSeed: currentUser.user_metadata?.avatar_seed || currentUser.user_metadata?.full_name || currentUser.email || "Collaborator",
+            id: currentUser?.id || guestId,
+            name: currentUser?.user_metadata?.full_name || currentUser?.email || "Collaborator",
+            avatarSeed: currentUser?.user_metadata?.avatar_seed || currentUser?.user_metadata?.full_name || currentUser?.email || "Collaborator",
             x: -9999, // Move far offscreen since we don't have vx/vy context here easily without passing it
             y: -9999,
             color,
@@ -931,11 +955,23 @@ export default function DrawingCanvas({ mode = "local" }: DrawingCanvasProps) {
 
   const clearCanvas = () => {
     if (strokes.length === 0) return;
-    setStrokes([]);
-    broadcastClear();
+    
+    let newStrokes: Stroke[];
+    const currentUserId = currentUser?.id || guestId;
+    if (mode === "global" && currentUserId) {
+      // In global mode, only clear strokes belonging to the current user
+      newStrokes = strokes.filter(s => s.userId !== currentUserId);
+      if (newStrokes.length === strokes.length) return; // Nothing to clear
+    } else {
+      // In local mode, clear everything
+      newStrokes = [];
+    }
+    
+    setStrokes(newStrokes);
+    broadcastStrokes(newStrokes);
     
     const newHistory = history.slice(0, historyStep + 1);
-    newHistory.push([]);
+    newHistory.push(newStrokes);
     setHistory(newHistory);
     setHistoryStep(newHistory.length - 1);
   };
@@ -1020,10 +1056,13 @@ export default function DrawingCanvas({ mode = "local" }: DrawingCanvasProps) {
     },
     {
       icon: <Trash2 className="w-5 h-5 text-red-600" />,
-      label: "Clear",
+      label: mode === "global" ? "Clear My Strokes" : "Clear All",
       onClick: clearCanvas,
     },
-  ];
+  ].filter(item => {
+    if (mode === "global" && (item.label === "Clear My Strokes" || item.label === "Clear All")) return false;
+    return true;
+  });
 
   return (
     <div className="fixed inset-0 w-full h-full">

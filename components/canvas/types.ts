@@ -14,6 +14,7 @@ export type Stroke = {
   angle?: number;
   centerX?: number;
   centerY?: number;
+  userId?: string;
 };
 
 export type CursorData = {
