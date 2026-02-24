@@ -1,10 +1,11 @@
 "use client";
 
+import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import DrawingCanvas from "@/components/canvas";
 import AuthWrapper from "@/components/auth";
 
-export default function Home() {
+function HomeContent() {
   const searchParams = useSearchParams();
   const room = searchParams.get("room");
   
@@ -16,5 +17,13 @@ export default function Home() {
     <AuthWrapper>
       <DrawingCanvas mode={mode} />
     </AuthWrapper>
+  );
+}
+
+export default function Home() {
+  return (
+    <Suspense fallback={null}>
+      <HomeContent />
+    </Suspense>
   );
 }

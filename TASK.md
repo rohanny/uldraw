@@ -45,11 +45,11 @@ A high-performance real-time collaborative whiteboard where multiple users can d
 ### History & Persistence
 - [x] Undo/Redo (local operation stack)
 - [ ] Persistent canvas state (PostgreSQL storage)
-- [ ] Room snapshots
+- [x] Room snapshots
 
 ### Export & Advanced
-- [ ] PNG/SVG export
-- [ ] Infinite canvas with pan/zoom
+- [x] PNG/SVG export
+- [x] Infinite canvas with pan/zoom
 - [ ] Text tool
 - [ ] Image upload support
 
