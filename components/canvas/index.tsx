@@ -5,6 +5,7 @@ import Dock, { DockItemData } from "../dock";
 import { Brush, Pencil, Trash2, Eraser, MousePointer2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useTheme } from "next-themes";
+import { useRouter } from "next/navigation";
 import Picker from "../picker";
 import Profile from "../profile";
 import BottomMenu from "../menu";
@@ -18,12 +19,14 @@ import { Tool, Point, Stroke, CursorData } from "./types";
 import { COLORS, BRUSH_SIZES, PENCIL_SIZES, ERASER_SIZES } from "./constants";
 import { pointToLineDistance, isPointNearStroke, getBoundingBox, isPointInBox, distanceToPoint, applyTransform, doBoxesIntersect, BoundingBox, rotatePoint } from "./utils";
 import { createExportHandler } from "./exportutils";
+import { ADJECTIVES, NOUNS } from "@/assets/names";
 
 interface DrawingCanvasProps {
   mode?: "local" | "global";
 }
 
 export default function DrawingCanvas({ mode = "local" }: DrawingCanvasProps) {
+  const router = useRouter();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [tool, setTool] = useState<Tool>("brush");
@@ -180,10 +183,27 @@ export default function DrawingCanvas({ mode = "local" }: DrawingCanvasProps) {
             avatar_seed: avatarSeed,
           },
         };
-        
-        setCurrentUser(userWithAvatar);
         if (session.user.is_anonymous && !session.user.user_metadata?.full_name) {
-          setShowGuestDialog(true);
+          const adj = ADJECTIVES[Math.floor(Math.random() * ADJECTIVES.length)];
+          const noun = NOUNS[Math.floor(Math.random() * NOUNS.length)];
+          
+          const randomName = `${adj} ${noun}`;
+          const updatedUser = {
+            ...userWithAvatar,
+            user_metadata: {
+              ...userWithAvatar.user_metadata,
+              full_name: randomName,
+            }
+          };
+          
+          setCurrentUser(updatedUser);
+          
+          // Update supabase so the name persists in the session
+          supabase.auth.updateUser({
+            data: { full_name: randomName, avatar_seed: avatarSeed }
+          }).catch(console.error);
+        } else {
+          setCurrentUser(userWithAvatar);
         }
       }
     });
@@ -499,14 +519,14 @@ export default function DrawingCanvas({ mode = "local" }: DrawingCanvasProps) {
           }
         }
         
-        ctx.strokeStyle = "#3b82f6";
+        ctx.strokeStyle = "#a855f7";
         ctx.lineWidth = 1;
         ctx.setLineDash([5, 5]);
         ctx.strokeRect(finalBox.minX, finalBox.minY, finalBox.width, finalBox.height);
         ctx.setLineDash([]);
         
         ctx.fillStyle = "#ffffff";
-        ctx.strokeStyle = "#3b82f6";
+        ctx.strokeStyle = "#a855f7";
         ctx.lineWidth = 2;
         
         const handleSize = 8;
@@ -543,8 +563,8 @@ export default function DrawingCanvas({ mode = "local" }: DrawingCanvasProps) {
     if (marquee) {
        const w = marquee.currentX - marquee.startX;
        const h = marquee.currentY - marquee.startY;
-       ctx.fillStyle = "rgba(59, 130, 246, 0.1)"; // blue transparent
-       ctx.strokeStyle = "rgba(59, 130, 246, 0.5)"; // blue semi transparent
+       ctx.fillStyle = "rgba(168, 85, 247, 0.1)"; // purple transparent
+       ctx.strokeStyle = "rgba(168, 85, 247, 0.5)"; // purple semi transparent
        ctx.lineWidth = 1;
        ctx.setLineDash([]);
        ctx.fillRect(marquee.startX, marquee.startY, w, h);
@@ -552,7 +572,7 @@ export default function DrawingCanvas({ mode = "local" }: DrawingCanvasProps) {
     }
     
     // Draw other users' in-progress strokes
-    Object.values(cursors).forEach(cursor => {
+        Object.values(cursors).forEach(cursor => {
       if (cursor.id !== currentUser?.id && cursor.currentStroke) {
         drawStroke(cursor.currentStroke);
       }
@@ -562,7 +582,21 @@ export default function DrawingCanvas({ mode = "local" }: DrawingCanvasProps) {
     
   }, [strokes, currentStroke, isDark, windowSize, cursors, currentUser, pan]);
 
+  const [hasUserDrawn, setHasUserDrawn] = useState(false);
+
+  useEffect(() => {
+    if (mode === "global" && (currentUser || guestId) && strokes.length > 0 && !hasUserDrawn) {
+      const currentId = currentUser?.id || guestId;
+      if (strokes.some(s => s.userId === currentId)) {
+        setHasUserDrawn(true);
+      }
+    }
+  }, [strokes, currentUser, guestId, mode, hasUserDrawn]);
+
   const startDrawing = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    // Only allow left-click drawing
+    if (e.button !== 0) return;
+
     // Close pickers if open
     if (showColorPicker || showSizePicker) {
       setShowColorPicker(false);
@@ -570,6 +604,9 @@ export default function DrawingCanvas({ mode = "local" }: DrawingCanvasProps) {
       return;
     }
     
+    // Mark that the user has interacted so we can hide hints
+    setHasUserDrawn(true);
+
     const canvas = canvasRef.current;
     if (!canvas) return;
 
@@ -953,7 +990,12 @@ export default function DrawingCanvas({ mode = "local" }: DrawingCanvasProps) {
     }
   };
 
+  const [isTrashClicked, setIsTrashClicked] = useState(false);
+
   const clearCanvas = () => {
+    setIsTrashClicked(true);
+    setTimeout(() => setIsTrashClicked(false), 1500);
+
     if (strokes.length === 0) return;
     
     let newStrokes: Stroke[];
@@ -1009,36 +1051,36 @@ export default function DrawingCanvas({ mode = "local" }: DrawingCanvasProps) {
 
   const dockItems: DockItemData[] = [
     {
-      icon: <MousePointer2 className={`w-5 h-5 ${tool === "select" ? "text-blue-600" : "text-gray-700 dark:text-gray-300"}`} />,
+      icon: <MousePointer2 className={`w-5 h-5 ${tool === "select" ? "text-purple-600" : "text-gray-700 dark:text-gray-300"}`} />,
       label: "Select",
       onClick: () => {
         setTool("select");
         setShowColorPicker(false);
         setShowSizePicker(false);
       },
-      className: tool === "select" ? "ring-2 ring-blue-600" : "",
+      className: tool === "select" ? "ring-2 ring-purple-600" : "",
     },
     {
-      icon: <Brush className={`w-5 h-5 ${tool === "brush" ? "text-blue-600" : "text-gray-700 dark:text-gray-300"}`} />,
+      icon: <Brush className={`w-5 h-5 ${tool === "brush" ? "text-purple-600" : "text-gray-700 dark:text-gray-300"}`} />,
       label: "Brush",
       onClick: () => toggleSizePicker("brush"),
-      className: tool === "brush" ? "ring-2 ring-blue-600" : "",
+      className: tool === "brush" ? "ring-2 ring-purple-600" : "",
     },
     {
-      icon: <Pencil className={`w-5 h-5 ${tool === "pencil" ? "text-blue-600" : "text-gray-700 dark:text-gray-300"}`} />,
+      icon: <Pencil className={`w-5 h-5 ${tool === "pencil" ? "text-purple-600" : "text-gray-700 dark:text-gray-300"}`} />,
       label: "Pencil",
       onClick: () => toggleSizePicker("pencil"),
-      className: tool === "pencil" ? "ring-2 ring-blue-600" : "",
+      className: tool === "pencil" ? "ring-2 ring-purple-600" : "",
     },
     {
-      icon: <Eraser className={`w-5 h-5 ${tool === "eraser" ? "text-blue-600" : "text-gray-700 dark:text-gray-300"}`} />,
+      icon: <Eraser className={`w-5 h-5 ${tool === "eraser" ? "text-purple-600" : "text-gray-700 dark:text-gray-300"}`} />,
       label: "Eraser",
       onClick: () => {
         setTool("eraser");
         setShowColorPicker(false);
         setShowSizePicker(false);
       },
-      className: tool === "eraser" ? "ring-2 ring-blue-600" : "",
+      className: tool === "eraser" ? "ring-2 ring-purple-600" : "",
     },
     {
       icon: (
@@ -1055,7 +1097,7 @@ export default function DrawingCanvas({ mode = "local" }: DrawingCanvasProps) {
       onClick: toggleColorPicker,
     },
     {
-      icon: <Trash2 className="w-5 h-5 text-red-600" />,
+      icon: <Trash2 className={`w-5 h-5 transition-colors ${isTrashClicked ? "text-red-500" : "text-gray-700 dark:text-gray-300"}`} />,
       label: mode === "global" ? "Clear My Strokes" : "Clear All",
       onClick: clearCanvas,
     },
@@ -1072,6 +1114,7 @@ export default function DrawingCanvas({ mode = "local" }: DrawingCanvasProps) {
         onMouseMove={draw}
         onMouseUp={stopDrawing}
         onMouseLeave={stopDrawing}
+        onContextMenu={(e) => e.preventDefault()}
         className="w-full h-full bg-white dark:bg-[#121212]"
         style={{
           cursor: isPanning
@@ -1177,7 +1220,7 @@ export default function DrawingCanvas({ mode = "local" }: DrawingCanvasProps) {
             exit={{ opacity: 0, y: -20 }}
             className="fixed top-6 left-6 z-50 bg-white dark:bg-zinc-900 px-3 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800 shadow-sm flex items-center gap-2 pointer-events-none"
           >
-            <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+            <div className="w-2 h-2 rounded-full bg-purple-500 animate-pulse" />
             <span className="text-[10px] font-mono text-zinc-500 dark:text-zinc-400 uppercase tracking-widest">
               POS: {Math.round(-pan.x)}, {Math.round(-pan.y)}
             </span>
@@ -1221,12 +1264,68 @@ export default function DrawingCanvas({ mode = "local" }: DrawingCanvasProps) {
         )}
       </AnimatePresence>
 
+      {/* Empty State Hints */}
+      <AnimatePresence>
+        {isLoaded && (mode === "global" ? !hasUserDrawn : strokes.length === 0) && !isDrawing && !currentStroke && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className={`absolute inset-0 pointer-events-none flex flex-col items-center justify-center font-sans select-none ${
+              mode === "global" ? "bg-white/40 dark:bg-zinc-950/40 backdrop-blur-xl" : ""
+            }`}
+          >
+            <div className="text-center max-w-lg mt-[-10vh]">
+              <h1 className="text-4xl md:text-5xl font-extrabold text-zinc-900 dark:text-zinc-100 tracking-tight flex items-center justify-center gap-3 mb-6">
+                <span className="text-purple-600 dark:text-purple-400 rotation-12">
+                  <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                </span>
+                ULDRAW
+              </h1>
+              {mode === "local" ? (
+                <p className="text-zinc-500 dark:text-zinc-400 text-lg leading-relaxed font-medium" style={{ fontFamily: "cursive, sans-serif" }}>
+                  Your drawings are saved in your browser's storage.<br/>
+                  Browser storage can be cleared unexpectedly.<br/>
+                  Save your work to a file regularly to avoid losing it.
+                </p>
+              ) : (
+                <div className="flex flex-col items-center gap-2">
+                  <p className="text-zinc-500 dark:text-zinc-400 text-lg leading-relaxed font-medium" style={{ fontFamily: "cursive, sans-serif" }}>
+                    This is a public global canvas. Anyone can join and draw.<br/>
+                    Please be respectful and spread positivity.<br/>
+                    Have fun collaborating!
+                  </p>
+                  <button 
+                    onClick={() => router.push("/")}
+                    className="mt-2 px-4 py-1.5 text-sm font-medium text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/30 rounded-full transition-colors pointer-events-auto"
+                  >
+                    ← Go back to local canvas
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Hint: Dock */}
+            <div className="absolute bottom-[100px] left-1/2 -translate-x-1/2 flex flex-col items-center text-zinc-400 dark:text-zinc-500">
+              <span className="text-sm font-medium mb-2 opacity-80" style={{ fontFamily: "cursive, sans-serif" }}>Pick a tool & Start drawing!</span>
+              <svg width="24" height="60" viewBox="0 0 24 60" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="opacity-60 text-current">
+                <path d="M12 5 Q 12 30 12 55" />
+                <path d="M6 45 L 12 55 L 18 45" />
+              </svg>
+            </div>
+
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <Dock items={dockItems} baseItemSize={40} magnification={56} panelHeight={56} />
       
       <BottomMenu 
         user={currentUser} 
+        showProfile={mode !== "local"}
         onEditProfile={() => setShowGuestDialog(true)}
-        onExport={() => setShowExportDialog(true)}
+        onExport={currentUser?.is_anonymous ? undefined : () => setShowExportDialog(true)}
+        showGlobalLink={mode === "local"}
       />
       
       {/* Pan Hint */}

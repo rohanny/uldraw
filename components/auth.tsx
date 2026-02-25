@@ -31,9 +31,21 @@ function AuthLogic({
 
       if (requireAuth && !session) {
         if (!isAuthPage) router.replace(getRedirectUrl());
+      } else if (!requireAuth && !session) {
+        if (!isAuthPage) {
+          await supabase.auth.signInAnonymously();
+          // The onAuthStateChange listener will handle the rest
+        } else {
+          setChecking(false);
+        }
       } else if (!requireAuth && session) {
-        const redirectUrl = searchParams.get("redirect") || "/";
-        router.replace(redirectUrl);
+        // Only redirect from auth pages if we already have a real session
+        if (isAuthPage && !session.user?.is_anonymous) {
+          const redirectUrl = searchParams.get("redirect") || "/";
+          router.replace(redirectUrl);
+        } else {
+          setChecking(false);
+        }
       } else {
         setChecking(false);
       }
@@ -47,8 +59,12 @@ function AuthLogic({
       if (requireAuth && !session) {
         if (!isAuthPage) router.replace(getRedirectUrl());
       } else if (!requireAuth && session) {
-        const redirectUrl = searchParams.get("redirect") || "/";
-        router.replace(redirectUrl);
+        if (isAuthPage && !session.user?.is_anonymous) {
+          const redirectUrl = searchParams.get("redirect") || "/";
+          router.replace(redirectUrl);
+        } else {
+          setChecking(false);
+        }
       }
     });
 

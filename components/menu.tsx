@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Menu as MenuIcon, Moon, Sun, LogOut, Download } from "lucide-react";
+import { Menu as MenuIcon, Moon, Sun, LogOut, Download, LogIn, Globe } from "lucide-react";
 import { useTheme } from "next-themes";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
@@ -11,11 +11,13 @@ import { useAvatarStore } from "@/lib/store";
 
 interface BottomMenuProps {
   user?: any;
+  showProfile?: boolean;
+  showGlobalLink?: boolean;
   onEditProfile?: () => void;
   onExport?: () => void;
 }
 
-export default function BottomMenu({ user, onEditProfile, onExport }: BottomMenuProps) {
+export default function BottomMenu({ user, showProfile = true, showGlobalLink = false, onEditProfile, onExport }: BottomMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
   const { theme, setTheme, systemTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
@@ -63,7 +65,7 @@ export default function BottomMenu({ user, onEditProfile, onExport }: BottomMenu
             transition={{ duration: 0.2 }}
             className="flex flex-col gap-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-2 shadow-xl w-48"
           >
-            {user && (
+            {user && showProfile && (
               <>
                 <div 
                   className="flex items-center gap-3 p-3 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
@@ -72,11 +74,11 @@ export default function BottomMenu({ user, onEditProfile, onExport }: BottomMenu
                     setIsOpen(false);
                   }}
                 >
-                  <div className="h-10 w-10 rounded-full bg-indigo-500 shrink-0 border border-zinc-200 dark:border-zinc-700 overflow-hidden flex items-center justify-center shadow-sm">
+                  <div className="h-10 w-10 rounded-full bg-purple-500 shrink-0 border border-zinc-200 dark:border-zinc-700 overflow-hidden flex items-center justify-center shadow-sm">
                      <img 
                         src={`https://api.dicebear.com/7.x/notionists/svg?seed=${getAvatarSeed(user.id)}`}
                         alt="Avatar" 
-                        className="w-full h-full object-cover bg-indigo-100 dark:bg-zinc-800"
+                        className="w-full h-full object-cover bg-purple-100 dark:bg-zinc-800"
                       />
                   </div>
                   <div className="flex flex-col overflow-hidden">
@@ -88,6 +90,21 @@ export default function BottomMenu({ user, onEditProfile, onExport }: BottomMenu
                     </span>
                   </div>
                 </div>
+                <div className="h-[1px] w-full bg-zinc-200 dark:bg-zinc-800 my-1" />
+              </>
+            )}
+            {showGlobalLink && (
+              <>
+                <button
+                  onClick={() => {
+                    router.push("/g");
+                    setIsOpen(false);
+                  }}
+                  className="flex items-center gap-3 w-full px-3 py-2 text-sm text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-950/30 rounded-lg transition-colors font-medium"
+                >
+                  <Globe className="w-4 h-4" />
+                  <span>Global Canvas</span>
+                </button>
                 <div className="h-[1px] w-full bg-zinc-200 dark:bg-zinc-800 my-1" />
               </>
             )}
@@ -104,30 +121,44 @@ export default function BottomMenu({ user, onEditProfile, onExport }: BottomMenu
               </button>
             )}
             
-            <div className="h-[1px] w-full bg-zinc-200 dark:bg-zinc-800 my-1" />
-            
             {onExport && (
-              <button
-                onClick={() => {
-                  onExport();
-                  setIsOpen(false);
-                }}
-                className="flex items-center gap-3 w-full px-3 py-2 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
-              >
-                <Download className="w-4 h-4" />
-                <span>Export</span>
-              </button>
+              <>
+                <div className="h-[1px] w-full bg-zinc-200 dark:bg-zinc-800 my-1" />
+                <button
+                  onClick={() => {
+                    onExport();
+                    setIsOpen(false);
+                  }}
+                  className="flex items-center gap-3 w-full px-3 py-2 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>Export</span>
+                </button>
+              </>
             )}
             
             <div className="h-[1px] w-full bg-zinc-200 dark:bg-zinc-800 my-1" />
             
-            <button
-              onClick={handleSignOut}
-              className="flex items-center gap-3 w-full px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-lg transition-colors"
-            >
-              <LogOut className="w-4 h-4" />
-              <span>Sign Out</span>
-            </button>
+            {user?.is_anonymous ? (
+              <button
+                onClick={() => {
+                  setIsOpen(false);
+                  router.push("/login");
+                }}
+                className="flex items-center gap-3 w-full px-3 py-2 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
+              >
+                <LogIn className="w-4 h-4" />
+                <span>Sign In</span>
+              </button>
+            ) : (
+              <button
+                onClick={handleSignOut}
+                className="flex items-center gap-3 w-full px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-lg transition-colors"
+              >
+                <LogOut className="w-4 h-4" />
+                <span>Sign Out</span>
+              </button>
+            )}
           </motion.div>
         )}
       </AnimatePresence>

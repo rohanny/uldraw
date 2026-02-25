@@ -14,7 +14,7 @@ function HomeContent() {
   const mode = room ? "global" : "local";
   
   return (
-    <AuthWrapper>
+    <AuthWrapper requireAuth={false}>
       <DrawingCanvas mode={mode} />
     </AuthWrapper>
   );

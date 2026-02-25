@@ -3,7 +3,7 @@ import AuthWrapper from "@/components/auth";
 
 export default function GlobalMode() {
   return (
-    <AuthWrapper>
+    <AuthWrapper requireAuth={false}>
       <DrawingCanvas mode="global" />
     </AuthWrapper>
   );

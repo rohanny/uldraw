@@ -130,21 +130,6 @@ function LoginContent() {
             </button>
           </form>
 
-          <div className="flex items-center gap-4 my-2">
-            <div className="h-[1px] flex-1 bg-zinc-800" />
-            <span className="text-xs text-zinc-500 font-medium uppercase tracking-wider">Or</span>
-            <div className="h-[1px] flex-1 bg-zinc-800" />
-          </div>
-
-          <button
-            type="button"
-            onClick={handleGuest}
-            disabled={loading}
-            className="w-full bg-zinc-900 border border-zinc-800 text-zinc-300 hover:bg-zinc-800 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed font-medium py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2 text-sm"
-          >
-            {loading ? "Please wait..." : "Continue as Guest"}
-          </button>
-
           <p className="text-center text-xs text-zinc-500 mt-4">
             Don't have an account?{" "}
             <Link href={`/register${redirectParams ? `?redirect=${encodeURIComponent(redirectParams)}` : ""}`} className="text-zinc-300 hover:text-white transition-colors font-medium">
